@@ -1,0 +1,62 @@
+- name: "Install and configure awscli, kubectl, create ns and deploy defender"
+  hosts: "{{ target | default('nothing') }}"
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ AWS_ACCESS_KEY_ID }}"
+    AWS_SECRET_ACCESS_KEY: "{{ AWS_SECRET_ACCESS_KEY }}"
+    AWS_DEFAULT_REGION: "{{ AWS_DEFAULT_REGION }}"
+    EKS_CLUSTER_NAME: "{{ EKS_CLUSTER_NAME }}"
+  vars:
+    ansible_user: ubuntu
+  become: true
+  tasks:
+    - name: Update Repo
+      ansible.builtin.command: sudo apt-get update
+
+    - name: Install python3-pip
+      ansible.builtin.command: sudo apt install python3-pip -y
+
+    - name: Install jq
+      ansible.builtin.command: sudo snap install jq 
+
+    - name: Install aws-cli
+      ansible.builtin.command: sudo snap install aws-cli --classic
+  
+    - name: Download kubectl 1.23.6
+      ansible.builtin.command: sudo curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.23.6/bin/linux/amd64/kubectl 
+
+    - name: Install kubectl
+      ansible.builtin.command: sudo mv kubectl /usr/local/bin/kubectl
+    
+    - name: chmod kubectl
+      ansible.builtin.command: sudo chmod 0755 /usr/local/bin/kubectl
+
+    - name: install pre-requisites pip3, kub, oc
+      pip:
+        name:
+          - openshift
+          - pyyaml
+          - kubernetes 
+
+    - name: Create AWS directory if it does not exist
+      ansible.builtin.file:
+        path: .aws
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Set AWS Creds
+      template:
+        src: templates/credentials.j2
+        dest: .aws/credentials
+
+    - name: Set AWS Config
+      template:
+        src: templates/config.j2
+        dest: .aws/config
+
+    - name: Set Kubeconfig for cluster 
+      ansible.builtin.command: 
+        cmd: aws eks update-kubeconfig --name "{{ EKS_CLUSTER_NAME }}"
+
+
