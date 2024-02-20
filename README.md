@@ -16,7 +16,7 @@ It is possible to use this code to quickly deploy a cloud native environment (K8
 
 ### High Level Diagram
 
-![hld](images/Terraform-aws-eks.png)
+![hld](images/HLD.png)
 
 
 
@@ -50,8 +50,6 @@ Open **Settings > Security > Secrets and variables > Actions**
 - <u>**Secrets**</u>
   - **AWS_ACCESS_KEY_ID** 
   - **AWS_SECRET_ACCESS_KEY**
-  - **PC_ACCESS_KEY** (Prisma Cloud Access Key)
-  - **PC_SECRET_KEY** (Prisma Cloud Secret Key)
   - **SSH_PRIVATE_KEY** (Private key yes, will be used by ansible to connect to bastion instance to install tools)
 
 
