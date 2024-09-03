@@ -4,12 +4,15 @@
 resource "aws_key_pair" "ssh_key" {
   key_name   = local.sshkey_name
   public_key = "${var.public_ssh_key}"
+  tags = {
+    yor_trace = "884decc7-55f1-4cde-b057-ff57573b8a49"
+  }
 }
 
 resource "aws_instance" "ec2instance" {
 
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.medium"
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.medium"
   subnet_id              = module.vpc.public_subnets[0]
   private_ip             = "10.0.4.10"
   vpc_security_group_ids = ["${aws_security_group.ec2-bastion.id}"]
@@ -37,6 +40,7 @@ resource "aws_instance" "ec2instance" {
   ]
 
   tags = {
-    Name  = local.ec2_bastion_name
+    Name      = local.ec2_bastion_name
+    yor_trace = "454b6450-ac02-4e65-9077-a4590b1b616e"
   }
 }
