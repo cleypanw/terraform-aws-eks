@@ -14,10 +14,13 @@ module "irsa-ebs-csi" {
   oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
 }
 
+# https://docs.aws.amazon.com/eks/latest/userguide/creating-an-add-on.html
+# get the version of the addon eksctl utils describe-addon-versions --kubernetes-version 1.30 --name name-of-addon | grep AddonVersion
+# example for aws-ebs-csi-driver : eksctl utils describe-addon-versions --kubernetes-version 1.30 --name aws-ebs-csi-driver | grep AddonVersion
 resource "aws_eks_addon" "ebs-csi" {
   cluster_name             = module.eks.cluster_name
   addon_name               = "aws-ebs-csi-driver"
-  addon_version            = "v1.31.1-eksbuild.1"
+  addon_version            = "v1.34.0-eksbuild.1"
   service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
   tags = {
     "eks_addon" = "ebs-csi"
