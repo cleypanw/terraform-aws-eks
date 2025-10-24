@@ -24,6 +24,9 @@ module "eks" {
       instance_types = ["${var.worker_nodes_type}"]
       min_size       = 1
       max_size       = 5
+      disk_size      = 20
+      disk_type      = "gp3"
+      encrypted      = true
       desired_size   = var.worker_nodes_desired_size
       metadata_options = {
         http_endpoint          = "enabled"
