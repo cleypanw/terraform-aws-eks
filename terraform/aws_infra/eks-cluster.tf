@@ -1,6 +1,6 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "20.24.1"
+  version = "20.26.0"
 
   cluster_name    = local.cluster_name
   cluster_version = "1.30"
@@ -15,6 +15,9 @@ module "eks" {
 
   eks_managed_node_group_defaults = {
     ami_type = "AL2_x86_64"
+    disk_size = 20
+    disk_type = "gp3"  
+    encrypted = true
 
   }
 
