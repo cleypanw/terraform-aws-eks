@@ -1,3 +1,6 @@
+module "iam" {
+  source = "./iam"
+}
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "20.26.0"
@@ -35,8 +38,8 @@ module "eks" {
       disk_type      = "gp3"
       encrypted      = true
 
-      # Utilisation du role node-group créé par tf iam
-      node_role_arn  = aws_iam_role.eks_node_group.arn
+      # Utilisation du role node-group créé par tf dans module iam à la racine
+      node_role_arn = module.iam.eks_node_group_arn
 
       metadata_options = {
         http_endpoint          = "enabled"
