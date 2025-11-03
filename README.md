@@ -60,22 +60,19 @@ Open **Settings > Security > Secrets and variables > Actions**
 
 ```shell
 aws_infra
-├── data-ansible-inventory.tf        # Terraform data sources to generate Ansible inventory
-├── ec2-bastion.tf                   # EC2 Bastion host configuration
-├── ecr.tf                           # ECR repositories configuration
-├── eks-cluster.tf                   # EKS cluster module + IAM module for node group roles
-├── iam
-│   ├── node-group-role.tf           # IAM role for EKS node groups + attached policies
-│   └── variables.tf                 # Variables for the IAM module (cluster_name)
-├── main.tf                          # Providers (AWS, Kubernetes), locals, random_string suffix generation
-├── outputs.tf                       # Terraform outputs
-├── sg.tf                            # Security group definitions
+├── main.tf                     # Providers, random suffix, locals, data sources (AMI, S3), etc.
+├── variables.tf                # Définition des variables (region, name_prefix, worker_nodes_type, etc.)
+├── outputs.tf                  # Outputs (cluster_endpoint, cluster_certificate, node_group_arn, etc.)
+├── terraform.tf                # Backend configuration / Terraform settings
+├── vpc.tf                      # Module / ressources VPC et subnets
+├── sg.tf                       # Security groups (bastion, eks)
+├── ec2-bastion.tf              # Bastion EC2
+├── ecr.tf                       # ECR repositories
+├── eks-cluster.tf               # EKS cluster module + managed node groups using Launch Template
+├── node-group-role.tf           # IAM role & instance profile for node group
 ├── template
-│   ├── ansible-inventory.tpl        # Template for generating Ansible inventory file
-│   └── cluster-name.tpl             # Template for dynamically generating cluster names
-├── terraform.tf                     # Terraform backend configuration & provider requirements
-├── variables.tf                     # Global variables (e.g., name_prefix, region, worker_nodes_type, desired_size)
-└── vpc.tf                           # VPC configuration (VPC, subnets, networking)
+│   ├── ansible-inventory.tpl    # Ansible inventory template
+│   └── cluster-name.tpl         # Cluster name template
 ```
 
 ### Deploy Infrastructure Workflow 
