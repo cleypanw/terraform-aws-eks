@@ -1,3 +1,4 @@
+
 #########
 # EC2 configuration
 
@@ -22,7 +23,7 @@ resource "aws_instance" "ec2instance" {
   root_block_device {
     delete_on_termination = true
     volume_size           = 20
-    volume_type           = "gp2"
+    volume_type           = "gp3"
     encrypted             = true
   }
 
