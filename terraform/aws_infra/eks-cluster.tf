@@ -1,6 +1,4 @@
-module "iam" {
-  source = "./iam"
-}
+# EKS Cluster
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "20.26.0"
@@ -13,7 +11,7 @@ module "eks" {
   cluster_endpoint_private_access = true
   cluster_endpoint_public_access  = false
 
-  # Add ec2-bastion security group to allow to connect to the cluster control plane
+  # Security group for EC2 bastion
   cluster_additional_security_group_ids = [
     aws_security_group.ec2-bastion.id
   ]
@@ -38,8 +36,8 @@ module "eks" {
       disk_type      = "gp3"
       encrypted      = true
 
-      # Utilisation du role node-group créé par tf dans module iam à la racine
-      node_role_arn = module.iam.eks_node_group_arn
+      # Use the IAM Role created at the same level
+      node_role_arn = aws_iam_role.eks_node_group.arn
 
       metadata_options = {
         http_endpoint          = "enabled"
