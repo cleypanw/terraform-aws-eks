@@ -18,7 +18,7 @@ module "eks" {
 
   # Default configuration for Managed Node Groups
   eks_managed_node_group_defaults = {
-    ami_type = "AL2023_x86_64"  # <-- Updated to AL2023
+    ami_type = "AL2023_x86_64_STANDARD"  
   }
 
   # Managed Node Groups
