@@ -19,7 +19,7 @@ module "eks" {
   enable_cluster_creator_admin_permissions = true
 
   eks_managed_node_group_defaults = {
-    ami_type  = "AL2_x86_64"
+    ami_type  = "AL2023_x86_64"
     disk_size = 20
     disk_type = "gp3"
     encrypted = true
