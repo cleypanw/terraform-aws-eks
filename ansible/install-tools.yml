@@ -1,62 +1,131 @@
-- name: "Install and configure awscli, kubectl, create ns and deploy defender"
+- name: Install and configure awscli, kubectl, create ns and deploy ArgoCD
   hosts: "{{ target | default('nothing') }}"
+  become: true
+  vars:
+    ansible_user: ubuntu
   environment:
     AWS_ACCESS_KEY_ID: "{{ AWS_ACCESS_KEY_ID }}"
     AWS_SECRET_ACCESS_KEY: "{{ AWS_SECRET_ACCESS_KEY }}"
     AWS_DEFAULT_REGION: "{{ AWS_DEFAULT_REGION }}"
     EKS_CLUSTER_NAME: "{{ EKS_CLUSTER_NAME }}"
-  vars:
-    ansible_user: ubuntu
-  become: true
+    PATH: "/opt/ansible-venv/bin:{{ ansible_env.PATH }}"
+
   tasks:
-    - name: Update Repo
-      ansible.builtin.command: sudo apt-get update
 
-    - name: Install python3-pip
-      ansible.builtin.command: sudo apt install python3-pip -y
+    - name: Redirect apt repos to old-releases (Ubuntu 23.10 Mantic)
+      ansible.builtin.replace:
+        path: /etc/apt/sources.list
+        regexp: 'http://.*\.archive\.ubuntu\.com/ubuntu|http://security\.ubuntu\.com/ubuntu'
+        replace: 'http://old-releases.ubuntu.com/ubuntu'
 
-    - name: Install jq
-      ansible.builtin.command: sudo snap install jq 
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
 
-    - name: Install aws-cli
-      ansible.builtin.command: sudo snap install aws-cli --classic
-  
+    - name: Install base tools (pip, venv, jq, unzip, curl)
+      ansible.builtin.apt:
+        name:
+          - python3-pip
+          - python3-venv
+          - jq
+          - unzip
+          - curl
+        state: present
+
+    # ---------------- AWS CLI ----------------
+    - name: Install AWS CLI v2 (zip installer)
+      ansible.builtin.command: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip"
+      args:
+        creates: /tmp/awscliv2.zip
+
+    - name: Unzip AWS CLI installer
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: yes
+
+    - name: Install AWS CLI v2
+      ansible.builtin.command: /tmp/aws/install
+      args:
+        creates: /usr/local/bin/aws
+
+    # ---------------- Kubectl ----------------
     - name: Download kubectl v1.31.1
-      ansible.builtin.command: sudo curl -LO "https://dl.k8s.io/release/v1.31.1/bin/linux/amd64/kubectl" 
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/v1.31.1/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
 
-    - name: Install kubectl
-      ansible.builtin.command: sudo mv kubectl /usr/local/bin/kubectl
-    
-    - name: chmod kubectl
-      ansible.builtin.command: sudo chmod 0755 /usr/local/bin/kubectl
+    # ---------------- Python Virtualenv ----------------
+    - name: Create Python virtualenv for Ansible tools
+      ansible.builtin.command:
+        cmd: python3 -m venv /opt/ansible-venv
+        creates: /opt/ansible-venv
 
-    - name: install pre-requisites pip3, kub, oc
-      pip:
+    - name: Upgrade pip in virtualenv
+      ansible.builtin.command:
+        cmd: /opt/ansible-venv/bin/pip install --upgrade pip
+
+    - name: Install pre-requisites pip packages in virtualenv
+      ansible.builtin.pip:
         name:
           - openshift
           - pyyaml
-          - kubernetes 
+          - kubernetes
+        virtualenv: /opt/ansible-venv
 
-    - name: Create AWS directory if it does not exist
+    # ---------------- AWS & Kubeconfig ----------------
+    - name: Create AWS directory
       ansible.builtin.file:
-        path: .aws
+        path: /home/{{ ansible_user }}/.aws
         state: directory
         mode: '0755'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
 
-    - name: Set AWS Creds
-      template:
+    - name: Set AWS Credentials
+      ansible.builtin.template:
         src: templates/credentials.j2
-        dest: .aws/credentials
+        dest: /home/{{ ansible_user }}/.aws/credentials
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
 
     - name: Set AWS Config
-      template:
+      ansible.builtin.template:
         src: templates/config.j2
-        dest: .aws/config
+        dest: /home/{{ ansible_user }}/.aws/config
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
 
-    - name: Set Kubeconfig for cluster 
-      ansible.builtin.command: 
-        cmd: aws eks update-kubeconfig --name "{{ EKS_CLUSTER_NAME }}"
+    - name: Ensure .kube directory exists
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/.kube
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+
+    - name: Generate kubeconfig from AWS EKS
+      ansible.builtin.command: >
+        aws eks update-kubeconfig
+        --name {{ EKS_CLUSTER_NAME }}
+        --region {{ AWS_DEFAULT_REGION }}
+        --kubeconfig /home/{{ ansible_user }}/.kube/config
+      args:
+        creates: "/home/{{ ansible_user }}/.kube/config"
+      environment:
+        HOME: "/home/{{ ansible_user }}"
+      become_user: "{{ ansible_user }}"
+
+    - name: Ensure kubeconfig permissions
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/.kube/config
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
 
 
