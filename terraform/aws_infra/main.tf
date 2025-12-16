@@ -20,7 +20,7 @@ data "aws_ami" "ubuntu" {
   most_recent = true
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-mantic-23.10-amd64-server-20240125"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-*-24.04-amd64-server-*"]
   }
   filter {
     name   = "virtualization-type"
