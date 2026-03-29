@@ -25,5 +25,6 @@ resource "aws_eks_addon" "ebs-csi" {
   tags = {
     "eks_addon" = "ebs-csi"
     "terraform" = "true"
+    yor_trace   = "fb9e382d-3455-4b68-9633-30e0a890f756"
   }
 }
