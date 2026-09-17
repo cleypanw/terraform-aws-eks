@@ -31,7 +31,7 @@ It is possible to use this code to quickly deploy a cloud native environment (K8
 #### Requirements
 
 - **GitHub Account** to create private fork
-- **AWS Subscription** with Programmatic Access (**AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY** )
+- **AWS Subscription** with **temporary STS credentials** (**AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN**), obtained for example with `aws sts get-session-token` or `aws sts assume-role`
 - **SSH Key**
 
 
@@ -48,9 +48,9 @@ It is possible to use this code to quickly deploy a cloud native environment (K8
 Open **Settings > Security > Secrets and variables > Actions** 
 
 - <u>**Secrets**</u>
-  - **AWS_ACCESS_KEY_ID** 
-  - **AWS_SECRET_ACCESS_KEY**
   - **SSH_PRIVATE_KEY** (Private key yes, will be used by ansible to connect to bastion instance to install tools)
+
+The AWS credentials are **no longer stored as repository secrets**: they are passed as workflow inputs at each run (see below), so the lab runs on short-lived STS credentials instead of long-lived keys.
 
 
 
@@ -69,6 +69,10 @@ Open **Settings > Security > Secrets and variables > Actions**
    ![deploy_infra](images/github-action-params.jpg)
 
 - AWS region in which to deploy the infrastructure (Mandatory) : **default = eu-west-3**
+
+- **AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN** : your **temporary STS credentials** (Mandatory)
+
+  *The three values are masked in the job logs, but GitHub also records `workflow_dispatch` inputs in the run summary where masking does not apply — only ever paste short-lived STS credentials here, never long-lived IAM keys. Make sure the session lasts long enough for the full run (`--duration-seconds 3600` or more).*
 
 - Prefix name for resources to be created: s3 bucket, vpc, eks, ec2, etc : **default = eks** 
 
@@ -125,6 +129,8 @@ It is only possible to connect to the Kubernetes cluster APIs via the **ec2-bast
    
 
 2. Configure your AWS account (example you can use aws configure cli command)
+
+   *Ansible already wrote the STS credentials used by the pipeline into `~/.aws/credentials` on the bastion, including `aws_session_token`. **They expire with the STS session** (typically 1h), so once they do you have to refresh that file yourself before any further `aws` / `kubectl` command.*
 
 ![aws-configure](images/aws-configure.png)
 
@@ -193,6 +199,7 @@ It is only possible to connect to the Kubernetes cluster APIs via the **ec2-bast
 ![delete_infra](images/delete_infra.png)
 
 - AWS region in which the infrastructure to delete is deployed : **default = eu-west-3** (the region where is deployed your AWS infra)
+- **AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN** : a **fresh set of temporary STS credentials** (the ones used at deploy time have most likely expired)
 - Prefix name for resources to be delete: s3 bucket, vpc, eks, ec2, etc. : **default = eks** (prefix set during build stage) 
 
 

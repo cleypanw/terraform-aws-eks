@@ -10,6 +10,18 @@ on:
         description: 'AWS region in which the infrastructure to delete is deployed'
         required: true
         default: 'eu-west-3'
+      AWS_ACCESS_KEY_ID:
+        description: 'AWS Access Key ID (STS temporary credentials)'
+        required: true
+        type: string
+      AWS_SECRET_ACCESS_KEY:
+        description: 'AWS Secret Access Key (STS temporary credentials)'
+        required: true
+        type: string
+      AWS_SESSION_TOKEN:
+        description: 'AWS Session Token (STS temporary credentials)'
+        required: true
+        type: string
       NAME_PREFIX:
         description: 'Prefix name for resources to be delete: s3 bucket, vpc, eks, ec2, etc.'
         required: true
@@ -20,17 +32,42 @@ jobs:
     name: Delete AWS infrastructure (VPC, EKS, Node Group, ec2, etc.)
     runs-on: ubuntu-latest
     steps:
+      # Must run first: ::add-mask:: only redacts what is logged after it is set.
+      # The values are read from `env` (not inlined in the script) to avoid
+      # shell injection, then exported so every later step inherits them.
+      - name: Prerequisite - Mask and export the AWS STS credentials given as inputs
+        env:
+          IN_AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+          IN_AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+          IN_AWS_SESSION_TOKEN: ${{ inputs.AWS_SESSION_TOKEN }}
+          IN_AWS_REGION: ${{ inputs.AWS_REGION }}
+        run: |
+          echo "::add-mask::$IN_AWS_ACCESS_KEY_ID"
+          echo "::add-mask::$IN_AWS_SECRET_ACCESS_KEY"
+          echo "::add-mask::$IN_AWS_SESSION_TOKEN"
+          {
+            echo "AWS_ACCESS_KEY_ID=$IN_AWS_ACCESS_KEY_ID"
+            echo "AWS_SECRET_ACCESS_KEY=$IN_AWS_SECRET_ACCESS_KEY"
+            echo "AWS_SESSION_TOKEN=$IN_AWS_SESSION_TOKEN"
+            echo "AWS_DEFAULT_REGION=$IN_AWS_REGION"
+          } >> "$GITHUB_ENV"
+        shell: bash
+
       - name: Checkout repo
         uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # pin@v2
 
       - name: Setup tool - install Terraform
         uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1 # pin@v2
         with:
-          terraform_version: 1.5.2
+          terraform_version: 1.16.3
           terraform_wrapper: false
 
       - name: Setup tool - install AWS cli
         uses: unfor19/install-aws-cli-action@457b7980b125044247e455d87b9a26fc2299b787 # pin@v1
+
+      - name: Prerequisite - Check the STS credentials are valid
+        run: aws sts get-caller-identity
+        shell: bash
 
       - name: Prerequisite - Github actor name control to convert to the expected format (underscore and uppercase removed and size limited to 10 chars)
         id: github_name_control
@@ -39,8 +76,6 @@ jobs:
           cat ACTOR
           echo "ACTOR_PREFIX=$(cat ACTOR)" >> $GITHUB_ENV
           echo ${{ env.ACTOR_PREFIX }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: ./scripts
         shell: bash
 
@@ -50,11 +85,6 @@ jobs:
           aws s3 cp s3://${{ github.event.inputs.NAME_PREFIX }}-${{ env.ACTOR_PREFIX }}-s3-tfstate/ansible_inventory.ini .
           aws s3 cp s3://${{ github.event.inputs.NAME_PREFIX }}-${{ env.ACTOR_PREFIX }}-s3-tfstate/cluster_name.txt .
         continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ github.event.inputs.AWS_REGION }}
         working-directory: ./ansible
         shell: bash
 
@@ -62,11 +92,6 @@ jobs:
         id: set_cluster_name
         run: |
           echo "EKS_CLUSTER_NAME=$(cat cluster_name.txt)" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ github.event.inputs.AWS_REGION }}
         working-directory: ./ansible
         shell: bash
 
@@ -84,30 +109,21 @@ jobs:
           options: |
             --inventory ansible_inventory.ini
             --extra-vars target="ec2-bastion-public"
-            --extra-vars AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            --extra-vars AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            --extra-vars AWS_ACCESS_KEY_ID="${{ env.AWS_ACCESS_KEY_ID }}"
+            --extra-vars AWS_SECRET_ACCESS_KEY="${{ env.AWS_SECRET_ACCESS_KEY }}"
+            --extra-vars AWS_SESSION_TOKEN="${{ env.AWS_SESSION_TOKEN }}"
             --extra-vars AWS_DEFAULT_REGION=${{ github.event.inputs.AWS_REGION }}
             --extra-vars EKS_CLUSTER_NAME=${{ env.EKS_CLUSTER_NAME }}
 
       - name: Init - Terraform Init
         id: init
         run: terraform init -backend-config="bucket=${{ github.event.inputs.NAME_PREFIX }}-${{ env.ACTOR_PREFIX }}-s3-tfstate" -backend-config="key=${{ github.event.inputs.NAME_PREFIX }}-infra.tfstate" -backend-config="region=${{ github.event.inputs.AWS_REGION }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ github.event.inputs.AWS_REGION }}
         working-directory: ./terraform/aws_infra
         shell: bash
 
       - name: Destroy - Terraform Destroy
         id: destroy
         run: terraform apply -destroy -var="region=${{ github.event.inputs.AWS_REGION }}" -var="name_prefix=${{ github.event.inputs.NAME_PREFIX }}-${{ env.ACTOR_PREFIX }}" -auto-approve
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ github.event.inputs.AWS_REGION }}
         working-directory: ./terraform/aws_infra
         shell: bash
 
@@ -115,20 +131,10 @@ jobs:
         id: remove_objects_s3
         run: |
           aws s3 rm s3://${{ github.event.inputs.NAME_PREFIX }}-${{ env.ACTOR_PREFIX }}-s3-tfstate --recursive
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ github.event.inputs.AWS_REGION }}
         shell: bash
 
       - name: Delete S3 bucket
         id: delete_s3
         run: |
           aws s3api delete-bucket --bucket ${{ github.event.inputs.NAME_PREFIX }}-${{ env.ACTOR_PREFIX }}-s3-tfstate
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ github.event.inputs.AWS_REGION }}
         shell: bash
