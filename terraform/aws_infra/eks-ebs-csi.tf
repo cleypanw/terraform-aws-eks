@@ -8,6 +8,9 @@ module "irsa-ebs-csi" {
   version = "6.8.1"
 
   name = "AmazonEKSTFEBSCSIRole-${module.eks.cluster_name}"
+  # v6 defaults to true, which feeds `name` into name_prefix -> capped at 38
+  # chars. Using the name as-is raises the limit to 64 and keeps the v5 naming.
+  use_name_prefix = false
 
   attach_ebs_csi_policy = true
 

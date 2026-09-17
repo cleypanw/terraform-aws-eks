@@ -22,6 +22,22 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
 
+  # v21 hardcodes `bootstrap_self_managed_addons = false`, so EKS no longer
+  # installs vpc-cni / kube-proxy / coredns on its own the way v20 relied on.
+  # They must be declared here or the nodes join the cluster and stay NotReady
+  # (NodeCreationFailure: Unhealthy nodes). `before_compute` installs the CNI
+  # before the node group is created.
+  addons = {
+    coredns = {}
+    eks-pod-identity-agent = {
+      before_compute = true
+    }
+    kube-proxy = {}
+    vpc-cni = {
+      before_compute = true
+    }
+  }
+
   # Managed Node Groups
   # `eks_managed_node_group_defaults` was removed in v21; settings go directly
   # on each node group (ami_type already defaults to AL2023_x86_64_STANDARD).
